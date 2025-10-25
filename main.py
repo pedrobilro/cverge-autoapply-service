@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from playwright.sync_api import sync_playwright, TimeoutError as PwTimeout
+from playwright.async_api import async_playwright, TimeoutError as PwTimeout
 import json
 import time
 import base64
@@ -49,33 +49,33 @@ def log_message(messages: List[str], msg: str):
     print(full_msg)
     messages.append(full_msg)
 
-def fill_field(page, selector: str, value: str, messages: List[str]) -> bool:
+async def fill_field(page, selector: str, value: str, messages: List[str]) -> bool:
     """Tenta preencher um campo se existir"""
     if not value:
         return False
     try:
         loc = page.locator(selector).first
-        if loc.is_visible(timeout=3000):
-            loc.fill(value)
+        if await loc.is_visible(timeout=3000):
+            await loc.fill(value)
             log_message(messages, f"✓ Preencheu: {selector[:50]} = '{value[:40]}'")
             return True
     except Exception as e:
         log_message(messages, f"✗ Falha ao preencher {selector[:30]}: {e}")
     return False
 
-def try_open_apply_modal(page, messages: List[str]):
+async def try_open_apply_modal(page, messages: List[str]):
     """Tenta clicar no botão Apply se existir modal"""
     try:
         btn = page.locator(SELECTORS["open_apply"]).first
-        if btn.is_visible(timeout=3000):
-            btn.click()
+        if await btn.is_visible(timeout=3000):
+            await btn.click()
             log_message(messages, "✓ Clicou em 'Apply' para abrir formulário")
-            page.wait_for_timeout(1000)
+            await page.wait_for_timeout(1000)
     except Exception:
         pass
 
-def apply_to_job(user_data: Dict[str, str]) -> Dict:
-    """Executa a candidatura automática"""
+async def apply_to_job_async(user_data: Dict[str, str]) -> Dict:
+    """Executa a candidatura automática com Playwright async"""
     messages = []
     job_url = user_data.get("job_url", "")
     full_name = user_data.get("full_name", "")
@@ -88,42 +88,42 @@ def apply_to_job(user_data: Dict[str, str]) -> Dict:
     screenshot_b64 = None
     
     try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
             page.set_default_timeout(15000)
             
             # 1. Abrir página da vaga
             log_message(messages, "Abrindo página da vaga...")
-            page.goto(job_url, wait_until="domcontentloaded")
-            page.wait_for_timeout(2000)
+            await page.goto(job_url, wait_until="domcontentloaded")
+            await page.wait_for_timeout(2000)
             
             # 2. Tentar abrir modal de candidatura (se existir)
-            try_open_apply_modal(page, messages)
+            await try_open_apply_modal(page, messages)
             
             # 3. Preencher campos
             log_message(messages, "Preenchendo formulário...")
             
             # Nome completo (tenta full_name primeiro)
-            filled_name = fill_field(page, SELECTORS["full_name"], full_name, messages)
+            filled_name = await fill_field(page, SELECTORS["full_name"], full_name, messages)
             
             if not filled_name and full_name:
                 # Dividir em primeiro/último nome
                 parts = full_name.split(maxsplit=1)
                 first = parts[0] if len(parts) > 0 else ""
                 last = parts[1] if len(parts) > 1 else ""
-                fill_field(page, SELECTORS["first_name"], first, messages)
-                fill_field(page, SELECTORS["last_name"], last, messages)
+                await fill_field(page, SELECTORS["first_name"], first, messages)
+                await fill_field(page, SELECTORS["last_name"], last, messages)
             
             # Email e telefone
-            fill_field(page, SELECTORS["email"], email, messages)
-            fill_field(page, SELECTORS["phone"], phone, messages)
+            await fill_field(page, SELECTORS["email"], email, messages)
+            await fill_field(page, SELECTORS["phone"], phone, messages)
             
             # 4. Submeter
             log_message(messages, "Tentando submeter...")
             try:
                 submit_btn = page.locator(SELECTORS["submit"]).first
-                submit_btn.click(timeout=5000)
+                await submit_btn.click(timeout=5000)
                 log_message(messages, "✓ Clicou no botão Submit")
             except PwTimeout:
                 log_message(messages, "✗ Botão Submit não encontrado")
@@ -131,21 +131,22 @@ def apply_to_job(user_data: Dict[str, str]) -> Dict:
                 log_message(messages, f"✗ Erro ao clicar Submit: {e}")
             
             # 5. Esperar resposta
-            page.wait_for_timeout(3000)
+            await page.wait_for_timeout(3000)
             
             # 6. Validar sucesso
-            html = page.content().lower()
+            html = (await page.content()).lower()
             success_detected = any(hint in html for hint in SUCCESS_HINTS)
             
             # 7. Screenshot final
-            screenshot_bytes = page.screenshot(full_page=True)
+            screenshot_bytes = await page.screenshot(full_page=True)
             screenshot_b64 = base64.b64encode(screenshot_bytes).decode('utf-8')
             log_message(messages, "✓ Screenshot capturado")
             
             # 8. Verificar se botão Submit desapareceu (bom sinal)
             try:
                 btn = page.locator(SELECTORS["submit"]).first
-                btn_disabled = btn.is_disabled() if btn.count() > 0 else True
+                btn_count = await btn.count()
+                btn_disabled = await btn.is_disabled() if btn_count > 0 else True
             except Exception:
                 btn_disabled = True
             
@@ -153,7 +154,7 @@ def apply_to_job(user_data: Dict[str, str]) -> Dict:
             
             log_message(messages, f"{'✓ Sucesso!' if ok else '⚠ Submissão não confirmada'}")
             
-            browser.close()
+            await browser.close()
             
     except Exception as e:
         log_message(messages, f"✗ ERRO CRÍTICO: {e}")
@@ -180,7 +181,7 @@ def health():
 @app.post("/apply")
 async def auto_apply(request: ApplyRequest):
     """
-    Endpoint que recebe dados e executa Playwright
+    Endpoint que recebe dados e executa Playwright async
     """
     try:
         user_data = {
@@ -190,8 +191,8 @@ async def auto_apply(request: ApplyRequest):
             "phone": request.phone,
         }
         
-        # Chama o script Playwright
-        result = apply_to_job(user_data)
+        # Chama o script Playwright async
+        result = await apply_to_job_async(user_data)
         
         return result
         
