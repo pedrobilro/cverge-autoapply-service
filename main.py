@@ -24,13 +24,19 @@ SUCCESS_HINTS = [
     "application submitted", "successfully applied"
 ]
 
-# Seletores CSS comuns para Lever
+# Seletores CSS comuns para formulários de candidatura
 SELECTORS = {
     "first_name": "input[name='firstName'], input[aria-label*='first' i], input[placeholder*='first' i]",
     "last_name": "input[name='lastName'], input[aria-label*='last' i], input[placeholder*='last' i]",
     "full_name": "input[name='name'], input[aria-label*='name' i], input[placeholder*='name' i]",
     "email": "input[type='email'], input[name='email'], input[aria-label*='email' i]",
     "phone": "input[type='tel'], input[name='phone'], input[aria-label*='phone' i]",
+    "location": "input[name*='location' i], input[aria-label*='location' i], input[placeholder*='location' i]",
+    "current_company": "input[name*='company' i], input[aria-label*='company' i], input[placeholder*='company' i]",
+    "current_location": "input[name*='current' i][name*='location' i], input[aria-label*='current location' i]",
+    "salary": "input[name*='salary' i], input[aria-label*='salary' i], input[placeholder*='salary' i]",
+    "notice": "input[name*='notice' i], input[aria-label*='notice' i], input[placeholder*='notice' i]",
+    "additional": "textarea[name*='additional' i], textarea[name*='cover' i], textarea[placeholder*='additional' i]",
     "resume": "input[type='file'][name*='resume'], input[type='file'][aria-label*='resume' i], input[type='file'][accept*='pdf']",
     "submit": "button:has-text('Submit'), button:has-text('Apply'), button:has-text('Enviar'), button[type='submit']",
     "open_apply": "a:has-text('Apply'), button:has-text('Apply')"
@@ -41,6 +47,12 @@ class ApplyRequest(BaseModel):
     full_name: str
     email: str
     phone: str = ""
+    location: str = ""
+    current_company: str = ""
+    current_location: str = ""
+    salary_expectations: str = ""
+    notice_period: str = ""
+    additional_info: str = ""
 
 def log_message(messages: List[str], msg: str):
     """Adiciona mensagem ao log"""
@@ -81,6 +93,12 @@ async def apply_to_job_async(user_data: Dict[str, str]) -> Dict:
     full_name = user_data.get("full_name", "")
     email = user_data.get("email", "")
     phone = user_data.get("phone", "")
+    location = user_data.get("location", "")
+    current_company = user_data.get("current_company", "")
+    current_location = user_data.get("current_location", "")
+    salary_expectations = user_data.get("salary_expectations", "")
+    notice_period = user_data.get("notice_period", "")
+    additional_info = user_data.get("additional_info", "")
     
     log_message(messages, f"Iniciando candidatura para: {job_url}")
     
@@ -118,6 +136,14 @@ async def apply_to_job_async(user_data: Dict[str, str]) -> Dict:
             # Email e telefone
             await fill_field(page, SELECTORS["email"], email, messages)
             await fill_field(page, SELECTORS["phone"], phone, messages)
+            
+            # Campos adicionais
+            await fill_field(page, SELECTORS["location"], location, messages)
+            await fill_field(page, SELECTORS["current_company"], current_company, messages)
+            await fill_field(page, SELECTORS["current_location"], current_location, messages)
+            await fill_field(page, SELECTORS["salary"], salary_expectations, messages)
+            await fill_field(page, SELECTORS["notice"], notice_period, messages)
+            await fill_field(page, SELECTORS["additional"], additional_info, messages)
             
             # 4. Submeter
             log_message(messages, "Tentando submeter...")
@@ -189,6 +215,12 @@ async def auto_apply(request: ApplyRequest):
             "full_name": request.full_name,
             "email": request.email,
             "phone": request.phone,
+            "location": request.location,
+            "current_company": request.current_company,
+            "current_location": request.current_location,
+            "salary_expectations": request.salary_expectations,
+            "notice_period": request.notice_period,
+            "additional_info": request.additional_info,
         }
         
         # Chama o script Playwright async
