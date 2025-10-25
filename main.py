@@ -5,6 +5,7 @@ from playwright.async_api import async_playwright, TimeoutError as PwTimeout
 import json
 import time
 import base64
+import random
 from typing import Dict, List
 
 app = FastAPI()
@@ -124,26 +125,38 @@ async def apply_to_job_async(user_data: Dict[str, str]) -> Dict:
             
             # Nome completo (tenta full_name primeiro)
             filled_name = await fill_field(page, SELECTORS["full_name"], full_name, messages)
+            if filled_name:
+                await page.wait_for_timeout(random.randint(2000, 3000))
             
             if not filled_name and full_name:
                 # Dividir em primeiro/último nome
                 parts = full_name.split(maxsplit=1)
                 first = parts[0] if len(parts) > 0 else ""
                 last = parts[1] if len(parts) > 1 else ""
-                await fill_field(page, SELECTORS["first_name"], first, messages)
-                await fill_field(page, SELECTORS["last_name"], last, messages)
+                if await fill_field(page, SELECTORS["first_name"], first, messages):
+                    await page.wait_for_timeout(random.randint(2000, 3000))
+                if await fill_field(page, SELECTORS["last_name"], last, messages):
+                    await page.wait_for_timeout(random.randint(2000, 3000))
             
             # Email e telefone
-            await fill_field(page, SELECTORS["email"], email, messages)
-            await fill_field(page, SELECTORS["phone"], phone, messages)
+            if await fill_field(page, SELECTORS["email"], email, messages):
+                await page.wait_for_timeout(random.randint(2000, 3000))
+            if await fill_field(page, SELECTORS["phone"], phone, messages):
+                await page.wait_for_timeout(random.randint(2000, 3000))
             
             # Campos adicionais
-            await fill_field(page, SELECTORS["location"], location, messages)
-            await fill_field(page, SELECTORS["current_company"], current_company, messages)
-            await fill_field(page, SELECTORS["current_location"], current_location, messages)
-            await fill_field(page, SELECTORS["salary"], salary_expectations, messages)
-            await fill_field(page, SELECTORS["notice"], notice_period, messages)
-            await fill_field(page, SELECTORS["additional"], additional_info, messages)
+            if await fill_field(page, SELECTORS["location"], location, messages):
+                await page.wait_for_timeout(random.randint(2000, 3000))
+            if await fill_field(page, SELECTORS["current_company"], current_company, messages):
+                await page.wait_for_timeout(random.randint(2000, 3000))
+            if await fill_field(page, SELECTORS["current_location"], current_location, messages):
+                await page.wait_for_timeout(random.randint(2000, 3000))
+            if await fill_field(page, SELECTORS["salary"], salary_expectations, messages):
+                await page.wait_for_timeout(random.randint(2000, 3000))
+            if await fill_field(page, SELECTORS["notice"], notice_period, messages):
+                await page.wait_for_timeout(random.randint(2000, 3000))
+            if await fill_field(page, SELECTORS["additional"], additional_info, messages):
+                await page.wait_for_timeout(random.randint(2000, 3000))
             
             # 4. Submeter
             log_message(messages, "Tentando submeter...")
